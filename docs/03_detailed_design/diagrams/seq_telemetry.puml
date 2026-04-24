@@ -1,0 +1,38 @@
+@startuml seq_telemetry
+title 正常系: Telemetry 受信・publish フロー
+
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #FAFAFA
+
+participant "Arduino\nMKR Zero" as ard
+participant "UartReader" as uart
+participant "asyncio.Queue" as q
+participant "_telemetry_loop" as main
+participant "StatusMonitor" as mon
+participant "MqttClient" as mqtt
+participant "AWS IoT Core" as aws
+participant "Web Browser" as web
+
+loop 送信間隔ごと（5〜30 秒）
+    ard -> ard : ランダムウォーク更新\n温度/湿度計算
+    ard -> uart : JSON + 改行 (UART)\n{"schemaVersion":"1.0","deviceId":"arduino-mkr-001",\n"timestamp":0,"temperatureC":23.4,"humidityPct":55.2,\n"ledState":false,"intervalMs":10000,"sequenceNo":42}
+    uart -> uart : 改行区切りで受信\nJSON パース
+    uart -> q : queue.put(frame)
+    q -> main : queue.get()
+    main -> main : timestamp を RPi の現在時刻\n(UTC エポックミリ秒)で上書き
+
+    main -> mon : on_telemetry_received()
+    mon -> mon : タイマーリセット
+    mon -> mqtt : publish(status:online)\ntopic: device/arduino-mkr-001/status\nQoS=1, Retain=true
+    mqtt -> aws : MQTT Publish (status:online)
+    aws --> mqtt : PUBACK
+
+    main -> mqtt : publish(telemetry, frame)\ntopic: device/arduino-mkr-001/telemetry\nQoS=1, Retain=true
+    mqtt -> aws : MQTT Publish (telemetry)
+    aws --> mqtt : PUBACK
+
+    aws -> web : MQTT (WSS)\ntelemetry + status をブロードキャスト
+    web -> web : sequenceNo 重複チェック\nChart.js グラフ更新\n温湿度表示・LED状態・送信間隔\n最終受信時刻 更新
+end
+
+@enduml

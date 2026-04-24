@@ -1,0 +1,114 @@
+@startuml class_gateway
+title Gateway モジュール クラス図
+
+skinparam classAttributeIconSize 0
+skinparam backgroundColor #FAFAFA
+
+package "gateway/" {
+
+    class Config <<dataclass>> {
+        +iot_endpoint: str
+        +device_id: str
+        +cert_path: str
+        +key_path: str
+        +ca_path: str
+        +uart_port: str
+        +uart_baudrate: int
+        +status_degraded_sec: int
+        +buffer_max_size: int
+        +buffer_max_age_sec: int
+    }
+
+    class UartReader {
+        -config: Config
+        -telemetry_queue: asyncio.Queue
+        -serial: Serial
+        +run(): Coroutine
+        -_parse_frame(raw: bytes): dict | None
+        -_reconnect(): Coroutine
+    }
+
+    class UartWriter {
+        -serial: Serial
+        +write(payload: dict): Coroutine
+    }
+
+    class MqttClient {
+        -config: Config
+        -_connection: Connection
+        -_offline_buffer: OfflineBuffer
+        -_command_callback: Callable
+        +connect(): Coroutine
+        +disconnect(): Coroutine
+        +publish(topic, payload, qos, retain): Coroutine
+        +set_command_callback(cb): None
+        -_on_connected(): None
+        -_reconnect_loop(): Coroutine
+    }
+
+    class CommandHandler {
+        -config: Config
+        -uart_writer: UartWriter
+        -_cache: dict[str, float]
+        +handle(payload: dict): Coroutine
+        -_validate(payload: dict): bool
+        -_is_duplicate(command_id: str): bool
+    }
+
+    class StatusMonitor {
+        -config: Config
+        -mqtt_client: MqttClient
+        -_last_received: float
+        -_current_state: str
+        +on_telemetry_received(): None
+        +run(): Coroutine
+    }
+
+    class OfflineBuffer {
+        -config: Config
+        -_buffer: deque
+        +push(topic: str, payload: dict): None
+        +flush(publish_fn: Callable): Coroutine
+    }
+
+    class "main.py" as Main {
+        +main(): Coroutine
+        +shutdown(tasks): Coroutine
+    }
+}
+
+Main ..> Config : load_config()
+Main *-- UartReader
+Main *-- UartWriter
+Main *-- MqttClient
+Main *-- CommandHandler
+Main *-- StatusMonitor
+
+UartReader --> Config : uses
+UartWriter --> Config : uses
+MqttClient --> Config : uses
+MqttClient *-- OfflineBuffer
+CommandHandler --> Config : uses
+CommandHandler --> UartWriter : uses
+StatusMonitor --> Config : uses
+StatusMonitor --> MqttClient : uses
+OfflineBuffer --> Config : uses
+
+note bottom of UartReader
+  UART 読み取り・JSON パース
+  破損時: 改行まで読み飛ばして再同期
+  Queue に frame を put
+end note
+
+note bottom of MqttClient
+  awsiotsdk v2 を使用
+  clean_session=True のため
+  再接続後に cmd を re-subscribe
+end note
+
+note bottom of CommandHandler
+  commandId キャッシュ: dict[str, float]
+  TTL 60秒, lazy eviction
+end note
+
+@enduml

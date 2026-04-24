@@ -1,0 +1,57 @@
+@startuml system_overview
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam ArrowColor #555555
+skinparam rectangleBorderColor #888888
+skinparam noteBorderColor #AAAAAA
+
+title Arduino AWS IoT - システム概要図
+
+' ---- ハードウェア層 ----
+package "デバイス層" #LightYellow {
+  rectangle "Arduino MKR Zero\n(SAMD21)" as Arduino #FFD700 {
+    component "疑似センサー\n生成" as PseudoSensor
+    component "UART\n通信制御" as ArduinoUART
+    component "LED\n制御" as LED
+    component "EEPROM\n設定保存" as EEPROM
+  }
+}
+
+' ---- ゲートウェイ層 ----
+package "ゲートウェイ層 (Raspberry Pi)" #LightBlue {
+  rectangle "Docker Compose" as DockerCompose {
+    component "uart_bridge\n(Python)" as Gateway #87CEEB
+    component "nginx\n(Web配信)" as Nginx #87CEEB
+  }
+}
+
+' ---- クラウド層 ----
+package "クラウド層 (AWS)" #LightGreen {
+  mxgraph.aws4.iot_core "AWS IoT Core" as IoTCore
+  mxgraph.aws4.general "Cognito\nIdentity Pool" as Cognito
+}
+
+' ---- Web層 ----
+package "クライアント層" #LavenderBlush {
+  rectangle "Webブラウザ" as Browser {
+    component "ダッシュボード\n(Vanilla JS)" as Dashboard
+    component "MQTT.js\n(WebSocket)" as MQTTjs
+  }
+}
+
+' ---- 接続 ----
+Arduino --> Gateway : UART (USB Serial)\n115,200 bps\nJSON over Serial
+Gateway --> IoTCore : MQTT over TLS\nポート 8883\nX.509 証明書認証
+IoTCore --> MQTTjs : MQTT over WebSocket\nポート 443
+Cognito --> MQTTjs : 一時クレデンシャル
+Nginx --> Dashboard : HTTP :8080
+MQTTjs --> Dashboard : リアルタイム更新
+
+' ---- 逆方向 ----
+Dashboard --> MQTTjs : コマンド送信
+MQTTjs --> IoTCore : device/.../cmd
+IoTCore --> Gateway : MQTT Subscribe
+Gateway --> Arduino : UART コマンド転送
+
+@enduml

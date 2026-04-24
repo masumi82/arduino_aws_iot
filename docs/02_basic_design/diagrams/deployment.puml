@@ -1,0 +1,65 @@
+@startuml deployment
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName Helvetica
+skinparam NodeBorderColor #666666
+skinparam DatabaseBorderColor #666666
+skinparam ArrowColor #444444
+
+title デプロイメント図
+
+' ---- 開発者PC ----
+node "開発者 PC (WSL2)" as DevPC #LightYellow {
+  artifact "Terraform CLI" as TF
+  artifact "Arduino IDE" as ArduinoIDE
+  artifact "Docker CLI\n(ARM クロスビルド)" as DockerCLI
+}
+
+' ---- Arduino ----
+node "Arduino MKR Zero" as ArduinoNode #FFD700 {
+  artifact "arduino_mkr_zero.ino\n(SAMD21 Flash)" as Firmware
+}
+
+' ---- Raspberry Pi ----
+node "Raspberry Pi\n(armv7+)" as RPi #87CEEB {
+  artifact "Docker Engine" as DockerEngine {
+    artifact "gateway コンテナ\n(Python)" as GatewayContainer
+    artifact "nginx コンテナ" as NginxContainer
+  }
+  database "certs/\n(X.509 証明書)" as Certs #LightGray
+  artifact ".env\n(環境変数)" as EnvFile #LightGray
+}
+
+' ---- AWS ----
+node "AWS ap-northeast-1" as AWS #D5F5E3 {
+  mxgraph.aws4.iot_core "AWS IoT Core\n(MQTT Broker)" as IoTCore
+  mxgraph.aws4.general "Cognito\nIdentity Pool" as CognitoNode
+  rectangle "Terraform 管理リソース" as TFManaged #DFF0D8 {
+    artifact "IoT Thing" as Thing
+    artifact "IoT Policy" as Policy
+    artifact "IAM Role" as IAMRole
+  }
+}
+
+' ---- ブラウザ ----
+node "Web ブラウザ\n(同一 LAN 内)" as BrowserNode #LavenderBlush {
+  artifact "index.html + app.js\n(Vanilla JS)" as WebApp
+}
+
+' ---- 接続 ----
+DevPC --> TF : terraform apply
+DevPC --> ArduinoNode : USB 書き込み
+DevPC --> RPi : SCP / SSH デプロイ
+
+ArduinoNode --> RPi : USB (UART /dev/ttyACM0)
+GatewayContainer --> IoTCore : MQTT over TLS :8883
+Certs --> GatewayContainer : volume mount (ro)
+EnvFile --> GatewayContainer : volume mount (ro)
+
+BrowserNode --> NginxContainer : HTTP :8080
+BrowserNode --> CognitoNode : HTTPS (一時認証情報取得)
+BrowserNode --> IoTCore : MQTT over WSS :443
+
+TF --> IoTCore : Terraform 管理
+TF --> CognitoNode : Terraform 管理
+
+@enduml

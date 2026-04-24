@@ -1,0 +1,99 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #f0f2f5;
+  color: #333;
+  padding: 16px;
+}
+
+h1 { font-size: 1.4rem; margin-bottom: 16px; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+.card h2 { font-size: 1rem; color: #666; margin-bottom: 12px; }
+
+/* Status badge */
+#status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.status-online   { background: #d4edda; color: #155724; }
+.status-degraded { background: #fff3cd; color: #856404; }
+.status-offline  { background: #f8d7da; color: #721c24; }
+.status-pending  { background: #e2e3e5; color: #383d41; }
+
+/* Sensor values */
+.sensor-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.sensor-row:last-child { border-bottom: none; }
+.sensor-label { font-size: 0.85rem; color: #666; }
+.sensor-value { font-size: 1.2rem; font-weight: 600; }
+
+/* Chart */
+#chart-card { grid-column: 1 / -1; }
+#sensor-chart { width: 100%; max-height: 240px; }
+
+/* Controls */
+.btn {
+  display: inline-block;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-right: 8px;
+  margin-bottom: 8px;
+}
+.btn-on  { background: #28a745; color: #fff; }
+.btn-off { background: #6c757d; color: #fff; }
+.btn-apply { background: #007bff; color: #fff; }
+
+.slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+#interval-slider { flex: 1; }
+#interval-preview { min-width: 70px; text-align: right; font-size: 0.9rem; color: #555; }
+
+/* Indicators */
+#cmd-indicator {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: #cce5ff;
+  color: #004085;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}
+#cmd-warning {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: #fff3cd;
+  color: #856404;
+  border-radius: 4px;
+  font-size: 0.85rem;
+}

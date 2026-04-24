@@ -1,0 +1,66 @@
+@startuml activity_arduino
+title Arduino setup() / loop() フローチャート
+
+skinparam backgroundColor #FAFAFA
+
+start
+
+partition "setup()" {
+    :UART 初期化\n115,200 bps;
+    :LED ピン出力設定\ndigitalWrite → LOW (OFF);
+    :EEPROM 読み出し\nアドレス 0x00: intervalMs\nアドレス 0x04: マジックバイト;
+    if (マジックバイト == 0xAB?) then (yes)
+        if (intervalMs in [5000, 30000]?) then (yes)
+            :採用: EEPROM の intervalMs;
+        else (no)
+            :フォールバック: INTERVAL_DEFAULT_MS (10000);
+        endif
+    else (no)
+        :フォールバック: INTERVAL_DEFAULT_MS (10000);
+    endif
+    :疑似センサー初期化\ntemp=25.0, humid=50.0;
+    :sequenceNo = 0;
+    :lastSendAt = millis();
+}
+
+partition "loop() — 繰り返し" {
+    :now = millis();
+    if (now - lastSendAt >= intervalMs?) then (yes)
+        :ランダムウォーク更新\ntemp += random(±TEMP_DELTA)\nhumid += random(±HUMID_DELTA)\nclamp to [MIN, MAX];
+        :JSON シリアライズ\n{schemaVersion, deviceId,\ntimestamp:0, temperatureC,\nhumidityPct, ledState,\nintervalMs, sequenceNo};
+        :UART 送信\njson + "\\n";
+        :sequenceNo++;
+        :lastSendAt = now;
+    endif
+    if (Serial.available() > 0?) then (yes)
+        :1 バイト読み込み;
+        if (受信バッファに "\\n" あり?) then (yes)
+            :JSON パース (ArduinoJson);
+            if (パース成功?) then (yes)
+                if (type == "setLed"?) then (yes)
+                    if (value が bool?) then (yes)
+                        :ledState = value\ndigitalWrite(LED, ledState);
+                    else (no)
+                        :無視;
+                    endif
+                else if (type == "setInterval"?) then (yes)
+                    if (value が int &\n[5000, 30000]?) then (yes)
+                        if (value != intervalMs?) then (yes)
+                            :intervalMs = value\nEEPROM 書き込み\n(アドレス 0x00, 0x04);
+                        else (no)
+                            :EEPROM スキップ\n(同値・寿命保護);
+                        endif
+                    else (no)
+                        :無視;
+                    endif
+                else (その他)
+                    :無視;
+                endif
+            else (no)
+                :受信バッファクリア\n(次の "\\n" まで読み飛ばし);
+            endif
+        endif
+    endif
+}
+
+@enduml

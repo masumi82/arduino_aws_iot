@@ -1,0 +1,56 @@
+@startuml seq_command
+title 正常系/異常系: Web コマンド → Arduino 制御フロー
+
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #FAFAFA
+
+participant "Web Browser" as web
+participant "AWS IoT Core" as aws
+participant "MqttClient" as mqtt
+participant "CommandHandler" as cmd
+participant "UartWriter" as uw
+participant "Arduino\nMKR Zero" as ard
+
+web -> web : commandId = crypto.randomUUID()\ncommand state → SENDING
+web -> aws : MQTT Publish (WSS)\ntopic: device/arduino-mkr-001/cmd\nQoS=1\n{"commandId":"550e..","type":"setLed","value":true}
+aws -> mqtt : MQTT (TLS)\nsubscribe 転送
+mqtt -> cmd : handle(payload)
+
+cmd -> cmd : バリデーション
+note right of cmd
+  ・commandId UUID v4 チェック
+  ・type が "setLed" or "setInterval"
+  ・setLed: value が bool 型厳密チェック
+  ・setInterval: int & [5000,30000]
+end note
+
+alt バリデーション OK
+    cmd -> cmd : _is_duplicate(commandId)
+    alt 重複なし
+        cmd -> cmd : キャッシュに commandId 追加\n(TTL 60秒)
+        cmd -> uw : write(command)
+        uw -> ard : JSON + 改行 (UART)\n{"commandId":"550e..","type":"setLed","value":true}
+        ard -> ard : LED ON\nledState = true
+        note right of ard
+          次回 Telemetry に
+          ledState=true が含まれる
+        end note
+    else 重複検知
+        cmd -> cmd : ワーニングログ出力\n{event:"cmd_duplicate",commandId:"550e.."}
+        note right of cmd : UART 転送しない
+    end
+else バリデーション NG
+    cmd -> cmd : ワーニングログ出力\n{event:"cmd_validation_error",reason:".."}
+    note right of cmd : UART 転送しない
+end
+
+web -> web : command state → WAITING\n10秒タイマー起動
+
+alt 10秒以内に Telemetry で変化確認
+    web <-- aws : 次の Telemetry\n(ledState=true)
+    web -> web : 変化確認 → SUCCESS\ncommand state → IDLE
+else 10秒超過
+    web -> web : 未到達警告表示\ncommand state → IDLE
+end
+
+@enduml

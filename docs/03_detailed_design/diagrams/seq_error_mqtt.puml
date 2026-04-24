@@ -1,0 +1,62 @@
+@startuml seq_error_mqtt
+title 異常系: MQTT 切断・オフラインバッファ・再接続・flush
+
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #FAFAFA
+
+participant "Arduino\nMKR Zero" as ard
+participant "UartReader" as uart
+participant "OfflineBuffer" as buf
+participant "MqttClient" as mqtt
+participant "AWS IoT Core" as aws
+participant "Web Browser" as web
+
+== 正常動作中 ==
+ard -> uart : Telemetry (UART)
+uart -> mqtt : publish(telemetry)
+mqtt -> aws : MQTT Publish
+
+== MQTT 切断発生 ==
+aws ->x mqtt : 切断（ネットワーク障害等）
+aws -> web : LWT 発動\nstatus:offline (Retain=true)
+web -> web : ステータスバッジ → 赤色表示
+
+mqtt -> mqtt : 切断検知\n{event:"mqtt_disconnected"} ログ
+mqtt -> mqtt : 再接続ループ開始\n指数バックオフ (1→2→4→…→60秒)
+
+== MQTT 切断中 (Telemetry は継続) ==
+loop MQTT 未接続の間
+    ard -> uart : Telemetry (UART)
+    uart -> buf : push(topic, payload)
+    buf -> buf : バッファ追加
+    alt バッファ上限 (50件) 超過
+        buf -> buf : 最古エントリ破棄\n{event:"offline_buffer_drop"} ワーニングログ
+    end
+end
+
+== MQTT 再接続成功 ==
+mqtt -> aws : TLS 再接続
+aws --> mqtt : 接続確立
+
+note over mqtt : clean_session=True のため\nsubscription は消滅している
+mqtt -> aws : re-subscribe\ntopic: device/arduino-mkr-001/cmd
+aws --> mqtt : SUBACK
+
+mqtt -> buf : flush(publish_fn)
+loop バッファ内エントリを時系列順に
+    buf -> buf : 期限切れチェック (600秒)
+    alt 有効なエントリ
+        buf -> mqtt : publish(telemetry)
+        mqtt -> aws : MQTT Publish (QoS=1)
+    else 期限切れ
+        buf -> buf : エントリ破棄\n{event:"offline_buffer_expire"} ログ
+    end
+end
+
+note over buf : バッファクリア完了
+
+mqtt -> aws : publish(status:online)
+aws -> web : status:online + バッファ分 telemetry
+web -> web : ステータスバッジ → 緑色\nグラフにバッファ分データ反映
+
+@enduml

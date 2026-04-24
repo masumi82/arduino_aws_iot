@@ -1,0 +1,55 @@
+@startuml data_flow
+skinparam backgroundColor #FAFAFA
+skinparam defaultFontName Helvetica
+skinparam ArrowColor #444444
+
+title データフロー図 — 監視（Telemetry）と制御（Command）
+
+|#LightYellow| Arduino MKR Zero |
+|#LightBlue| RPi Gateway |
+|#LightGreen| AWS IoT Core |
+|#LavenderBlush| Web ブラウザ |
+
+' ===== 監視フロー =====
+|Arduino MKR Zero|
+start
+:疑似センサー値生成\n(ランダムウォーク);
+:JSON シリアライズ\n{"type":"telemetry", ...};
+:UART 送信\n(115,200 bps, 改行区切り);
+
+|RPi Gateway|
+:UART 受信・JSON パース;
+if (パース成功?) then (yes)
+  :MQTT Publish\ndevice/arduino-mkr-001/telemetry;
+  |AWS IoT Core|
+  :メッセージ受信・転送;
+  |Web ブラウザ|
+  :MQTT Subscribe 受信;
+  :ダッシュボード更新\n(温度・湿度・LED・時刻);
+else (no)
+  |RPi Gateway|
+  :エラーログ出力\nデータ破棄;
+endif
+
+' ===== 制御フロー =====
+|Web ブラウザ|
+:ユーザー操作\n(LED / 送信間隔);
+:MQTT Publish\ndevice/arduino-mkr-001/cmd\n{"commandId":"...", "type":"setLed", "value":true};
+
+|AWS IoT Core|
+:メッセージ受信・転送;
+
+|RPi Gateway|
+:MQTT Subscribe 受信;
+if (バリデーション OK?) then (yes)
+  :UART 転送\n{"type":"cmd", "led":true};
+  |Arduino MKR Zero|
+  :コマンド解釈・実行\n(LED / 送信間隔変更);
+  :次の Telemetry に結果反映;
+else (no)
+  |RPi Gateway|
+  :ワーニングログ\nコマンド破棄;
+endif
+
+stop
+@enduml

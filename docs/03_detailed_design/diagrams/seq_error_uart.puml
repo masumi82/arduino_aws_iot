@@ -1,0 +1,47 @@
+@startuml seq_error_uart
+title 異常系: UART 切断・再接続・degraded 遷移
+
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #FAFAFA
+
+participant "Arduino\nMKR Zero" as ard
+participant "UartReader" as uart
+participant "StatusMonitor" as mon
+participant "MqttClient" as mqtt
+participant "AWS IoT Core" as aws
+participant "Web Browser" as web
+
+== 正常動作中 ==
+ard -> uart : Telemetry (UART)
+uart -> mon : on_telemetry_received()
+mon -> mqtt : publish(status:online)
+mqtt -> aws : status:online (Retain=true)
+aws -> web : status:online
+
+== UART 切断発生 ==
+ard ->x uart : 切断（USB 抜去など）
+uart -> uart : SerialException 発生\n{event:"uart_disconnected"} ログ
+
+loop 5秒間隔でリトライ
+    uart -> uart : pyserial open() リトライ
+end
+
+note over mon : 15秒間 Telemetry 受信なし
+
+mon -> mon : degraded タイマー発動
+mon -> mqtt : publish(status:degraded)
+mqtt -> aws : MQTT Publish\ntopic: device/arduino-mkr-001/status\n{"state":"degraded"}, QoS=1, Retain=true
+aws -> web : status:degraded
+web -> web : ステータスバッジ → 黄色表示
+
+== UART 再接続 ==
+uart -> uart : pyserial open() 成功\n{event:"uart_reconnected"} ログ
+ard -> uart : Telemetry 再開
+uart -> mon : on_telemetry_received()
+mon -> mon : タイマーリセット
+mon -> mqtt : publish(status:online)
+mqtt -> aws : status:online
+aws -> web : status:online
+web -> web : ステータスバッジ → 緑色表示
+
+@enduml

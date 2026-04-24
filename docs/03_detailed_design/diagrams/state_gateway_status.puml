@@ -1,0 +1,48 @@
+@startuml state_gateway_status
+title Gateway ステータス状態機械
+
+skinparam backgroundColor #FAFAFA
+
+[*] --> OFFLINE : 起動時（LWT 登録前）
+
+state "OFFLINE" as OFFLINE #Pink {
+    OFFLINE : AWS IoT Core が LWT 発動\nstatus: {"state":"offline"}
+}
+
+state "ONLINE" as ONLINE #LightGreen {
+    ONLINE : Gateway が publish\nstatus: {"state":"online"}
+}
+
+state "DEGRADED" as DEGRADED #LightYellow {
+    DEGRADED : Gateway が publish\nstatus: {"state":"degraded"}
+}
+
+OFFLINE --> ONLINE : MQTT 接続確立 +\nTelemetry 受信
+
+ONLINE --> DEGRADED : 最後の Telemetry 受信から\n15 秒超過\n[StatusMonitor タイマー発動]
+
+ONLINE --> OFFLINE : MQTT 切断\n[LWT 発動 (AWS IoT Core)]
+
+DEGRADED --> ONLINE : Telemetry 受信\n[on_telemetry_received()]
+
+DEGRADED --> OFFLINE : MQTT 切断\n[LWT 発動]
+
+note right of OFFLINE
+  **publish 主体:** AWS IoT Core（LWT）
+  **Retain:** true
+  **Gateway の責務:** なし（自動送信）
+end note
+
+note right of ONLINE
+  **publish 主体:** Gateway（通常 publish）
+  **Retain:** true
+  **タイミング:** Telemetry 受信直後
+end note
+
+note right of DEGRADED
+  **publish 主体:** Gateway（タイマー publish）
+  **Retain:** true
+  **条件:** 15 秒間 UART から\nTelemetry が届かない
+end note
+
+@enduml

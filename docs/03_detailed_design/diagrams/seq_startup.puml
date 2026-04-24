@@ -1,0 +1,55 @@
+@startuml seq_startup
+title システム起動シーケンス
+
+skinparam sequenceMessageAlign center
+skinparam backgroundColor #FAFAFA
+
+participant "main.py" as main
+participant "config.py" as cfg
+participant "serial.Serial" as ser
+participant "UartWriter" as uw
+participant "UartReader" as ur
+participant "CommandHandler" as cmd
+participant "MqttClient" as mqtt
+participant "StatusMonitor" as mon
+participant "AWS IoT Core" as aws
+
+main -> cfg : load_config()
+cfg -> cfg : 環境変数バリデーション
+alt 必須変数が未設定
+    cfg --> main : ValueError → 起動失敗
+end
+cfg --> main : Config
+
+main -> ser : Serial() ← まだ open しない
+main -> uw : UartWriter(serial_port)
+main -> ur : UartReader(config, queue, serial_port)
+main -> mqtt : MqttClient(config)
+main -> cmd : CommandHandler(config, uart_writer)
+main -> mon : StatusMonitor(config, mqtt_client)
+
+note over main : コンポーネント配線
+main -> mqtt : set_command_callback(command_handler.handle)
+
+main -> mqtt : connect()
+mqtt -> aws : TLS 接続\n（X.509 相互認証）
+aws --> mqtt : 接続確立
+
+mqtt -> aws : LWT 登録\ntopic: device/<id>/status\npayload: {"state":"offline"}
+note right of aws : 異常切断検知時に\nAWS が自動送信する
+
+mqtt -> aws : subscribe\ntopic: device/<id>/cmd
+aws --> mqtt : SUBACK
+
+main -> ur : UartReader.run() タスク起動
+ur -> ser : Serial.open()\n(/dev/ttyACM0, 115200bps)
+note right of ur : 失敗時は 5 秒待機後リトライ
+
+main -> mon : StatusMonitor.run() タスク起動
+note right of mon : 1 秒ごとにタイマーを確認
+
+main -> main : _telemetry_loop タスク起動
+
+note over main, mon : asyncio.gather で全タスクを同時起動\nSIGTERM/SIGINT → shutdown() へ
+
+@enduml

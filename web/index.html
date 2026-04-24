@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Arduino IoT Dashboard</title>
+  <link rel="stylesheet" href="css/style.css" />
+
+  <!-- CDN: AWS SDK, MQTT.js, Chart.js -->
+  <script src="https://sdk.amazonaws.com/js/aws-sdk-2.1692.0.min.js"></script>
+  <script src="https://unpkg.com/mqtt@5.3.4/dist/mqtt.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <h1>Arduino IoT Dashboard</h1>
+
+  <div class="grid">
+    <!-- Status card -->
+    <div class="card">
+      <h2>接続状態</h2>
+      <span id="status-badge" class="status-pending">Pending</span>
+    </div>
+
+    <!-- Sensor card -->
+    <div class="card">
+      <h2>センサーデータ</h2>
+      <div class="sensor-row">
+        <span class="sensor-label">温度</span>
+        <span class="sensor-value"><span id="temp-value">--</span> °C</span>
+      </div>
+      <div class="sensor-row">
+        <span class="sensor-label">湿度</span>
+        <span class="sensor-value"><span id="humid-value">--</span> %</span>
+      </div>
+      <div class="sensor-row">
+        <span class="sensor-label">LED 状態</span>
+        <span class="sensor-value" id="led-state">--</span>
+      </div>
+      <div class="sensor-row">
+        <span class="sensor-label">送信間隔</span>
+        <span class="sensor-value"><span id="interval-value">--</span> ms</span>
+      </div>
+      <div class="sensor-row">
+        <span class="sensor-label">最終受信</span>
+        <span class="sensor-label" id="last-received-at">--</span>
+      </div>
+    </div>
+
+    <!-- Chart card -->
+    <div class="card" id="chart-card">
+      <h2>温湿度グラフ（直近 30 件）</h2>
+      <canvas id="sensor-chart"></canvas>
+    </div>
+
+    <!-- Control card -->
+    <div class="card">
+      <h2>コントロール</h2>
+      <div>
+        <button class="btn btn-on"  id="btn-led-on" >LED ON</button>
+        <button class="btn btn-off" id="btn-led-off">LED OFF</button>
+      </div>
+      <div class="slider-row">
+        <label for="interval-slider">送信間隔</label>
+        <input type="range" id="interval-slider" min="5000" max="30000" step="1000" value="10000" />
+        <span id="interval-preview">10000 ms</span>
+        <button class="btn btn-apply" id="btn-interval">適用</button>
+      </div>
+      <div id="cmd-indicator" hidden>送信中...</div>
+      <div id="cmd-warning"   hidden></div>
+    </div>
+  </div>
+
+  <!-- App scripts -->
+  <script src="js/config.js"></script>
+  <script src="js/mqtt_client.js"></script>
+  <script src="js/status.js"></script>
+  <script src="js/telemetry.js"></script>
+  <script src="js/command.js"></script>
+  <script>
+    (async () => {
+      statusModule.init();
+      telemetryModule.init();
+      commandModule.init();
+      await mqttClientModule.connect();
+    })();
+  </script>
+</body>
+</html>
