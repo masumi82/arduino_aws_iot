@@ -1,4 +1,3 @@
-#include <EEPROM.h>
 #include <ArduinoJson.h>
 #include "config.h"
 #include "sensor.h"
@@ -9,23 +8,6 @@ static bool     ledState   = false;
 static uint32_t intervalMs = INTERVAL_DEFAULT_MS;
 static uint32_t sequenceNo = 0;
 static uint32_t lastSendAt = 0;
-
-static void loadIntervalFromEeprom() {
-    uint8_t magic;
-    EEPROM.get(EEPROM_ADDR_MAGIC, magic);
-    if (magic != EEPROM_MAGIC_BYTE) return;
-
-    uint32_t stored;
-    EEPROM.get(EEPROM_ADDR_INTERVAL, stored);
-    if (stored >= INTERVAL_MIN_MS && stored <= INTERVAL_MAX_MS) {
-        intervalMs = stored;
-    }
-}
-
-static void saveIntervalToEeprom(uint32_t value) {
-    EEPROM.put(EEPROM_ADDR_INTERVAL, value);
-    EEPROM.put(EEPROM_ADDR_MAGIC, EEPROM_MAGIC_BYTE);
-}
 
 static void applyCommand(const JsonDocument& doc) {
     const char* type = doc["type"];
@@ -44,7 +26,6 @@ static void applyCommand(const JsonDocument& doc) {
             if (v >= INTERVAL_MIN_MS && v <= INTERVAL_MAX_MS) {
                 if (v != intervalMs) {
                     intervalMs = v;
-                    saveIntervalToEeprom(v);
                 }
             }
         }
@@ -60,7 +41,6 @@ void setup() {
     pinMode(LED_PIN, OUTPUT);
     digitalWrite(LED_PIN, LOW);
 
-    loadIntervalFromEeprom();
     lastSendAt = millis();
 }
 

@@ -15,7 +15,7 @@ data "aws_iam_policy_document" "iot_device" {
 
   statement {
     effect  = "Allow"
-    actions = ["iot:Publish"]
+    actions = ["iot:Publish", "iot:RetainPublish"]
     resources = [
       "arn:aws:iot:${var.aws_region}:*:topic/device/${var.device_id}/telemetry",
       "arn:aws:iot:${var.aws_region}:*:topic/device/${var.device_id}/status",

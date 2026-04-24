@@ -25,7 +25,7 @@ const mqttClientModule = (() => {
     const url   = _signedWssUrl(creds);
 
     client = mqtt.connect(url, {
-      clientId:        "web-" + crypto.randomUUID().slice(0, 8),
+      clientId:        "web-" + Math.random().toString(36).slice(2, 10),
       reconnectPeriod: 5000,
       keepalive:       30,
       transformWsUrl:  () => _signedWssUrl(creds),  // re-sign on reconnect
@@ -81,12 +81,13 @@ const mqttClientModule = (() => {
     const algorithm  = "AWS4-HMAC-SHA256";
     const credScope  = `${date}/${region}/${service}/aws4_request`;
 
+    // Security-Token is NOT signed — it must be appended after the signature.
+    // Signing it causes IoT Core to return 403.
     const canonicalQs = [
       `X-Amz-Algorithm=${algorithm}`,
       `X-Amz-Credential=${encodeURIComponent(creds.accessKeyId + "/" + credScope)}`,
       `X-Amz-Date=${datetime}`,
       `X-Amz-Expires=86400`,
-      `X-Amz-Security-Token=${encodeURIComponent(creds.sessionToken)}`,
       `X-Amz-SignedHeaders=host`,
     ].join("&");
 
@@ -121,7 +122,7 @@ const mqttClientModule = (() => {
     );
 
     const signature = _hmacSha256Hex(signingKey, stringToSign);
-    const signedUrl = `wss://${host}/mqtt?${canonicalQs}&X-Amz-Signature=${signature}`;
+    const signedUrl = `wss://${host}/mqtt?${canonicalQs}&X-Amz-Signature=${signature}&X-Amz-Security-Token=${encodeURIComponent(creds.sessionToken)}`;
     return signedUrl;
   }
 

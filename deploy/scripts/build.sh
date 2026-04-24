@@ -5,18 +5,19 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 IMAGE_NAME="arduino-gateway"
-PLATFORM="linux/arm/v7"   # Change to linux/arm64 for RPi 5
+PLATFORM="linux/arm64"   # RPi 4/5 (aarch64)
 
 echo "==> Setting up buildx builder..."
 docker buildx inspect arduino-builder &>/dev/null \
-  || docker buildx create --name arduino-builder --use
+  || docker buildx create --name arduino-builder --driver docker-container --use
 docker buildx use arduino-builder
 
 echo "==> Building ${IMAGE_NAME} for ${PLATFORM}..."
 docker buildx build \
   --platform "${PLATFORM}" \
   --file "${REPO_ROOT}/deploy/gateway/Dockerfile" \
-  --output "type=docker,name=${IMAGE_NAME}:latest" \
+  --load \
+  --tag "${IMAGE_NAME}:latest" \
   "${REPO_ROOT}"
 
 echo "==> Saving image to /tmp/${IMAGE_NAME}.tar.gz..."

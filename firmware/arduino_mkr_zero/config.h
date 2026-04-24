@@ -1,4 +1,5 @@
 #pragma once
+#include <Arduino.h>
 
 // Device identity
 static const char DEVICE_ID[] = "arduino-mkr-001";
@@ -24,11 +25,6 @@ static const float HUMID_DELTA  = 1.0f;
 static const uint32_t INTERVAL_DEFAULT_MS = 10000;
 static const uint32_t INTERVAL_MIN_MS     =  5000;
 static const uint32_t INTERVAL_MAX_MS     = 30000;
-
-// EEPROM layout
-static const int EEPROM_ADDR_INTERVAL = 0x00;  // uint32_t (4 bytes)
-static const int EEPROM_ADDR_MAGIC    = 0x04;  // uint8_t  (1 byte)
-static const uint8_t EEPROM_MAGIC_BYTE = 0xAB;
 
 // LED pin
 static const int LED_PIN = LED_BUILTIN;

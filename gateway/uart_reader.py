@@ -39,7 +39,10 @@ class UartReader:
         self._serial.port     = self._config.uart_port
         self._serial.baudrate = self._config.uart_baudrate
         self._serial.timeout  = 1
+        self._serial.dsrdtr   = False
+        self._serial.rtscts   = False
         self._serial.open()
+        self._serial.dtr      = False  # prevent Arduino reset on open
 
     async def _read_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         buf = bytearray()

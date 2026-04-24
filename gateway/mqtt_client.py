@@ -28,6 +28,7 @@ class MqttClient:
         self._buffer = OfflineBuffer(config)
         self._connection = None
         self._connected = False
+        self._loop: asyncio.AbstractEventLoop | None = None
         self._command_callback: Callable[[dict], Awaitable[None]] | None = None
         self._reconnect_callbacks: list[Callable[[], None]] = []
 
@@ -50,12 +51,13 @@ class MqttClient:
                 topic   = f"device/{self._config.device_id}/status",
                 payload = lwtpayload.encode(),
                 qos     = mqtt.QoS.AT_LEAST_ONCE,
-                retain  = True,
+                retain  = False,
             ),
             on_connection_interrupted = self._on_disconnected,
             on_connection_resumed     = self._on_resumed,
         )
-        connect_future, _ = self._connection.connect()
+        self._loop = asyncio.get_event_loop()
+        connect_future = self._connection.connect()
         await asyncio.wrap_future(connect_future)
         self._connected = True
         logger.info(json.dumps({"event": "mqtt_connected",
@@ -66,7 +68,7 @@ class MqttClient:
         topic = f"device/{self._config.device_id}/status"
         await self._do_publish(topic, {"state": "offline"}, retain=True)
         if self._connection:
-            disconnect_future, _ = self._connection.disconnect()
+            disconnect_future = self._connection.disconnect()
             await asyncio.wrap_future(disconnect_future)
         self._connected = False
         logger.info(json.dumps({"event": "mqtt_disconnected"}))
@@ -101,14 +103,18 @@ class MqttClient:
         logger.info(json.dumps({"event": "mqtt_subscribed", "topic": cmd_topic}))
 
     def _on_message(self, topic: str, payload: bytes, **kwargs) -> None:  # noqa: ARG002
-        if self._command_callback is None:
+        if self._command_callback is None or self._loop is None:
             return
         try:
             data = json.loads(payload.decode("utf-8"))
         except (json.JSONDecodeError, UnicodeDecodeError) as exc:
             logger.warning(json.dumps({"event": "mqtt_parse_error", "reason": str(exc)}))
             return
-        _log_task(asyncio.ensure_future(self._command_callback(data)))
+        future = asyncio.run_coroutine_threadsafe(self._command_callback(data), self._loop)
+        future.add_done_callback(
+            lambda f: logger.error(json.dumps({"event": "task_error", "error": str(f.exception())}))
+            if not f.cancelled() and f.exception() else None
+        )
 
     def _on_disconnected(self, connection, error, **kwargs) -> None:  # noqa: ARG002
         self._connected = False
@@ -118,8 +124,14 @@ class MqttClient:
     def _on_resumed(self, connection, return_code, session_present, **kwargs) -> None:  # noqa: ARG002
         self._connected = True
         logger.info(json.dumps({"event": "mqtt_reconnected"}))
+        if self._loop is None:
+            return
         # clean_session=True means subscriptions are lost on reconnect, must re-subscribe.
-        _log_task(asyncio.ensure_future(self._on_reconnected()))
+        future = asyncio.run_coroutine_threadsafe(self._on_reconnected(), self._loop)
+        future.add_done_callback(
+            lambda f: logger.error(json.dumps({"event": "task_error", "error": str(f.exception())}))
+            if not f.cancelled() and f.exception() else None
+        )
 
     async def _on_reconnected(self) -> None:
         for cb in self._reconnect_callbacks:
