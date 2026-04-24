@@ -14,7 +14,7 @@ package "デバイス層" #LightYellow {
     component "疑似センサー\n生成" as PseudoSensor
     component "UART\n通信制御" as ArduinoUART
     component "LED\n制御" as LED
-    component "EEPROM\n設定保存" as EEPROM
+    component "送信間隔\n(メモリ保持)" as Interval
   }
 }
 
@@ -28,8 +28,8 @@ package "ゲートウェイ層 (Raspberry Pi)" #LightBlue {
 
 ' ---- クラウド層 ----
 package "クラウド層 (AWS)" #LightGreen {
-  mxgraph.aws4.iot_core "AWS IoT Core" as IoTCore
-  mxgraph.aws4.general "Cognito\nIdentity Pool" as Cognito
+  rectangle "AWS IoT Core\n(MQTT Broker)" as IoTCore #90EE90
+  rectangle "Cognito\nIdentity Pool" as Cognito #90EE90
 }
 
 ' ---- Web層 ----

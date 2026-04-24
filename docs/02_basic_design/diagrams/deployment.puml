@@ -31,8 +31,8 @@ node "Raspberry Pi\n(armv7+)" as RPi #87CEEB {
 
 ' ---- AWS ----
 node "AWS ap-northeast-1" as AWS #D5F5E3 {
-  mxgraph.aws4.iot_core "AWS IoT Core\n(MQTT Broker)" as IoTCore
-  mxgraph.aws4.general "Cognito\nIdentity Pool" as CognitoNode
+  rectangle "AWS IoT Core\n(MQTT Broker)" as IoTCore #90EE90
+  rectangle "Cognito\nIdentity Pool" as CognitoNode #90EE90
   rectangle "Terraform 管理リソース" as TFManaged #DFF0D8 {
     artifact "IoT Thing" as Thing
     artifact "IoT Policy" as Policy
